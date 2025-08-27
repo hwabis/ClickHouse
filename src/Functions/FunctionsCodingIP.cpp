@@ -8,10 +8,8 @@
 #include <Columns/ColumnFixedString.h>
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnTuple.h>
-#include <Columns/ColumnsNumber.h>
 #include <Columns/ColumnNullable.h>
 #include <Core/Settings.h>
-#include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeFixedString.h>
 #include <DataTypes/DataTypeNullable.h>
@@ -26,7 +24,6 @@
 #include <IO/WriteHelpers.h>
 #include <Common/IPv6ToBinary.h>
 #include <Common/formatIPv6.h>
-#include <base/hex.h>
 #include <Common/typeid_cast.h>
 
 #include <arpa/inet.h>
@@ -1177,6 +1174,157 @@ public:
     }
 };
 
+class FunctionIPMatchSubnet : public IFunction
+{
+public:
+    static constexpr auto name = "IPMatchSubnet";
+    static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionIPMatchSubnet>(); }
+
+    String getName() const override { return name; }
+    size_t getNumberOfArguments() const override { return 2; }
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
+
+    DataTypePtr getReturnTypeImpl(const DataTypes & arguments) const override
+    {
+        if (!isIPv4(arguments[0]))
+            throw Exception(
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                "Illegal type {} of first argument of function {}, expected IPv4",
+                arguments[0]->getName(),
+                getName());
+
+        const auto * array_type = checkAndGetDataType<DataTypeArray>(arguments[1].get());
+        if (!array_type)
+            throw Exception(
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                "Illegal type {} of second argument of function {}, expected Array(String)",
+                arguments[1]->getName(),
+                getName());
+
+        // Allow Array(Nothing) for empty arrays, or Array(String)
+        const auto & nested_type = array_type->getNestedType();
+        if (!isString(nested_type) && !isNothing(nested_type))
+            throw Exception(
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                "Illegal type {} of second argument of function {}, expected Array(String)",
+                arguments[1]->getName(),
+                getName());
+
+        return std::make_shared<DataTypeString>();
+    }
+
+    ColumnPtr
+    executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & /*ret_type*/, size_t input_rows_count) const override
+    {
+        const auto & ip_column = arguments[0].column;
+        const auto * col_const_ip = checkAndGetColumnConst<ColumnIPv4>(ip_column.get());
+        const auto * col_ip = checkAndGetColumn<ColumnIPv4>(ip_column.get());
+
+        const auto & subnets_column = arguments[1].column;
+        const auto * col_const_array = checkAndGetColumnConst<ColumnArray>(subnets_column.get());
+        const auto * col_array = checkAndGetColumn<ColumnArray>(subnets_column.get());
+
+        auto col_res = ColumnString::create();
+
+        for (size_t i = 0; i < input_rows_count; ++i)
+        {
+            IPv4 ip_value;
+            if (col_const_ip)
+            {
+                ip_value = col_const_ip->getValue<IPv4>();
+            }
+            else if (col_ip)
+            {
+                ip_value = col_ip->getData()[i];
+            }
+            else
+            {
+                throw Exception(
+                    ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                    "Illegal column {} of argument of function {}, expected IPv4",
+                    arguments[0].column->getName(),
+                    getName());
+            }
+
+            Array subnets_array;
+            if (col_const_array)
+            {
+                Field array_field = col_const_array->getField();
+                subnets_array = array_field.safeGet<Array>();
+            }
+            else if (col_array)
+            {
+                Field array_field = (*col_array)[i];
+                subnets_array = array_field.safeGet<Array>();
+            }
+            else
+            {
+                throw Exception(
+                    ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                    "Illegal column {} of argument of function {}, expected Array",
+                    arguments[1].column->getName(),
+                    getName());
+            }
+
+            String matched_subnet = "";
+            for (const auto & subnet_field : subnets_array)
+            {
+                String subnet_str = subnet_field.safeGet<String>();
+
+                if (matchesSubnet(ip_value, subnet_str))
+                {
+                    matched_subnet = subnet_str;
+                    break;
+                }
+            }
+
+            col_res->insertData(matched_subnet.data(), matched_subnet.size());
+        }
+
+        return col_res;
+    }
+
+private:
+    static bool matchesSubnet(UInt32 ip, const String & subnet_str)
+    {
+        // Parse "192.168.1.0/24"
+        size_t slash_pos = subnet_str.find('/');
+        if (slash_pos == String::npos)
+            return false;
+
+        String ip_part = subnet_str.substr(0, slash_pos);
+        UInt8 cidr = std::stoi(subnet_str.substr(slash_pos + 1));
+
+        UInt32 network_ip = parseIPv4String(ip_part);
+
+        auto [lower, upper] = applyCIDRMask(network_ip, cidr);
+        return ip >= lower && ip <= upper;
+    }
+
+    static std::pair<UInt32, UInt32> applyCIDRMask(UInt32 src, UInt8 bits_to_keep)
+    {
+        if (bits_to_keep >= 32)
+            return {src, src};
+        if (bits_to_keep == 0)
+            return {0, 0xFFFFFFFF};
+
+        UInt32 mask = static_cast<UInt32>(-1) << (32 - bits_to_keep);
+        UInt32 lower = src & mask;
+        UInt32 upper = lower | ~mask;
+        return {lower, upper};
+    }
+
+    static UInt32 parseIPv4String(const String & ip_str)
+    {
+        UInt32 result;
+        bool success = parseIPv4whole(ip_str.data(), ip_str.data() + ip_str.size(), reinterpret_cast<unsigned char *>(&result));
+
+        if (!success)
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid IPv4 address: {}", ip_str);
+        return result;
+    }
+};
+
 struct NameFunctionIPv4NumToString { static constexpr auto name = "IPv4NumToString"; };
 struct NameFunctionIPv4NumToStringClassC { static constexpr auto name = "IPv4NumToStringClassC"; };
 
@@ -1191,6 +1339,7 @@ REGISTER_FUNCTION(Coding)
     factory.registerFunction<FunctionIPv4CIDRToRange>();
     factory.registerFunction<FunctionIsIPv4String>();
     factory.registerFunction<FunctionIsIPv6String>();
+    factory.registerFunction<FunctionIPMatchSubnet>();
 
     factory.registerFunction<FunctionIPv4NumToString<0, NameFunctionIPv4NumToString>>();
     factory.registerFunction<FunctionIPv4NumToString<1, NameFunctionIPv4NumToStringClassC>>();
