@@ -13,7 +13,7 @@ SELECT IPv6MatchSubnet(toIPv6('2001:db8:1234:5678::1'), ['2001:db8:1234:5678::/6
 SELECT IPv6MatchSubnet(toIPv6('2001:db8:1234:5678::1'), ['2001:db8:1234:5679::/64']);
 SELECT IPv6MatchSubnet(toIPv6('2001:db8::abcd:3000'), ['2001:db8::abcd:4000/114']);
 SELECT IPv6MatchSubnet(toIPv6('2001:db8::abcd:4000'), ['2001:db8::abcd:4000/114']);
-SELECT IPv6MatchSubnet(toIPv6('::'), [::/128]);
-SELECT IPv6MatchSubnet(toIPv6('2001:db8::1'), [::/0]);
+SELECT IPv6MatchSubnet(toIPv6('::'), ['::/128']);
+SELECT IPv6MatchSubnet(toIPv6('2001:db8::1'), ['::/0']);
 SELECT IPv6MatchSubnet(toIPv6('2001:db8::1'), []);
 SELECT IPv6MatchSubnet(reinterpretAsFixedString(toIPv6('2001:db8::1')), ['2001:db8::/32']);
