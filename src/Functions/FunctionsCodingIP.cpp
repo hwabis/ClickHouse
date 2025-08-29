@@ -1293,7 +1293,18 @@ private:
             return false;
 
         String ip_part = subnet_str.substr(0, slash_pos);
-        UInt8 cidr = std::stoi(subnet_str.substr(slash_pos + 1));
+        UInt8 cidr;
+        try
+        {
+            int cidr_int = std::stoi(subnet_str.substr(slash_pos + 1));
+            if (cidr_int < 0 || cidr_int > 128)
+                return false;
+            cidr = static_cast<UInt8>(cidr_int);
+        }
+        catch (...)
+        {
+            return false;
+        }
 
         UInt32 network_ip = parseIPv4String(ip_part);
 
