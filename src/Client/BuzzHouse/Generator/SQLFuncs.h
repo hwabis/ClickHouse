@@ -1123,6 +1123,8 @@ const std::vector<CHFunction> CHFuncs = {
     CHFunction(SQLFunc::FUNCisIPv4String, 0, 0, 1, 1),
     CHFunction(SQLFunc::FUNCisIPv6String, 0, 0, 1, 1),
     CHFunction(SQLFunc::FUNCisIPAddressInRange, 0, 0, 2, 2),
+    CHFunction(SQLFunc::FUNCIPv4MatchSubnet, 0, 0, 2, 2),
+    CHFunction(SQLFunc::FUNCIPv6MatchSubnet, 0, 0, 2, 2),
     /// Geo
     CHFunction(SQLFunc::FUNCgreatCircleDistance, 0, 0, 4, 4),
     CHFunction(SQLFunc::FUNCgeoDistance, 0, 0, 4, 4),

@@ -245,6 +245,34 @@ SELECT IPv6CIDRToRange(toIPv6('2001:0db8:0000:85a3:0000:0000:ac1f:8001'), 32);
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
+## IPv4MatchSubnet(ipv4, CidrArray), {#ipv4matchsubnetipv4-cidr}
+
+Accepts an IPv4 and an array of [CIDR](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing). Returns the first CIDR that matches the given IPv4.
+
+```sql
+SELECT IPv4MatchSubnet(toIPv4('1.2.3.4'), ['1.2.4.5/32', '1.2.4.5/24', '1.2.4.5/16'])
+```
+
+```text
+   ┌─IPv4MatchSub⋯2.4.5/16'])─┐
+   │ 1.2.4.5/16               │
+   └──────────────────────────┘
+```
+
+## IPv6MatchSubnet(ipv6, CidrArray), {#ipv6matchsubnetipv6-cidr}
+
+Accepts an IPv6 and an array of [CIDR](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing). Returns the first CIDR that matches the given IPv6.
+
+```sql
+SELECT IPv6MatchSubnet(toIPv6('2001:db8:1234::1'), ['2001:db8:5678::/48', '2001:db8:1234::1/128', '2001:db8::/48']);
+```
+
+```text
+   ┌─IPv6MatchSub⋯db8::/48'])─┐
+   │ 2001:db8:1234::1/128     │
+   └──────────────────────────┘
+```
+
 ## toIPv4 {#toipv4}
 
 Converts a string or a UInt32 form of IPv4 address to [IPv4](../data-types/ipv4.md) type.

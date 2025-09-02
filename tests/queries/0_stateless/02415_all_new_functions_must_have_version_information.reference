@@ -5,6 +5,7 @@ CRC64
 DATE
 FQDN
 IPv4CIDRToRange
+IPv4MatchSubnet
 IPv4NumToString
 IPv4NumToStringClassC
 IPv4StringToNum
@@ -12,6 +13,7 @@ IPv4StringToNumOrDefault
 IPv4StringToNumOrNull
 IPv4ToIPv6
 IPv6CIDRToRange
+IPv6MatchSubnet
 IPv6NumToString
 IPv6StringToNum
 IPv6StringToNumOrDefault
