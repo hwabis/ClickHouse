@@ -1297,7 +1297,7 @@ private:
         try
         {
             int cidr_int = std::stoi(subnet_str.substr(slash_pos + 1));
-            if (cidr_int < 0 || cidr_int > 128)
+            if (cidr_int < 0 || cidr_int > 32)
                 return false;
             cidr = static_cast<UInt8>(cidr_int);
         }
